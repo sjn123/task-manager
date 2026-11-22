@@ -2,6 +2,7 @@ package com.jani.taskmanager.controller;
 
 import com.jani.taskmanager.entity.Task;
 import com.jani.taskmanager.service.TaskService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,7 +26,7 @@ public class TaskController {
 
     // 新增：处理 POST 请求
     @PostMapping
-    public String addTask(@RequestBody Task task) {
+    public String addTask(@Valid @RequestBody Task task) {
         taskService.addTask(task);
         return "任务添加成功！";
     }
