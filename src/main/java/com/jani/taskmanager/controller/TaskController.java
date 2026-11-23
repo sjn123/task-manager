@@ -1,6 +1,7 @@
 package com.jani.taskmanager.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jani.taskmanager.entity.PageResult;
 import com.jani.taskmanager.entity.Result;
 import com.jani.taskmanager.entity.Task;
 import com.jani.taskmanager.service.TaskService;
@@ -63,12 +64,14 @@ public class TaskController {
 
     // 分页查询接口
     @GetMapping("/page")
-    public Result<Page<Task>> getPage(
-            @RequestParam(defaultValue = "1") int pageNum, // 默认第1页
-            @RequestParam(defaultValue = "5") int pageSize // 默认每页5条
+    public Result<PageResult<Task>> getPage(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "5") int pageSize,
+            // 加上这两个参数，required = false 表示前端可以传，也可以不传
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String status
     ) {
-        Page<Task> page = taskService.getTasksByPage(pageNum, pageSize);
-        return Result.success(page);
+        Page<Task> page = taskService.getTasksByPage(pageNum, pageSize, title, status);
+        return Result.success(new PageResult<>(page.getRecords(), page.getTotal()));
     }
-
 }
