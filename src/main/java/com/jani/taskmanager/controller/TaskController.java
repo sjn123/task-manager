@@ -1,5 +1,6 @@
 package com.jani.taskmanager.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jani.taskmanager.entity.Result;
 import com.jani.taskmanager.entity.Task;
 import com.jani.taskmanager.service.TaskService;
@@ -58,6 +59,16 @@ public class TaskController {
         // @PathVariable 意思是把 URL 里的 {id} 提取出来赋给这个参数
         taskService.deleteTask(id);
         return Result.success(null);
+    }
+
+    // 分页查询接口
+    @GetMapping("/page")
+    public Result<Page<Task>> getPage(
+            @RequestParam(defaultValue = "1") int pageNum, // 默认第1页
+            @RequestParam(defaultValue = "5") int pageSize // 默认每页5条
+    ) {
+        Page<Task> page = taskService.getTasksByPage(pageNum, pageSize);
+        return Result.success(page);
     }
 
 }
