@@ -1,13 +1,17 @@
 package com.jani.taskmanager.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jani.taskmanager.dto.TaskAddDTO;
+import com.jani.taskmanager.dto.TaskUpdateDTO;
 import com.jani.taskmanager.entity.PageResult;
 import com.jani.taskmanager.entity.Result;
 import com.jani.taskmanager.entity.Task;
 import com.jani.taskmanager.service.TaskService;
 import jakarta.validation.Valid;
 import org.apache.ibatis.annotations.Delete;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -30,7 +34,10 @@ public class TaskController {
 
     // 新增：处理 POST 请求
     @PostMapping
-    public Result<Task> addTask(@Valid @RequestBody Task task) {
+    public Result<Task> addTask(@Valid @RequestBody TaskAddDTO taskAddDTO) {
+        Task task = new Task();
+        // 用 BeanUtils 把 DTO 里的属性，拷贝到 Entity 里
+        BeanUtils.copyProperties(taskAddDTO, task);
         taskService.addTask(task);
         return Result.success(task);
     }
@@ -44,12 +51,11 @@ public class TaskController {
 
     // 新增：处理 PUT 请求
     @PutMapping
-    public Result<Task> updateTask(@Valid @RequestBody Task task) {
-        System.out.println("前端传过来的对象：" + task);
-        // 如果前端没传 ID，直接返回错误提示
-        if (task.getId() == null) {
-            return Result.fail(400, "修改失败，ID不能为空！");
-        }
+    public Result<Task> updateTask(@Valid @RequestBody TaskUpdateDTO taskUpdateDTO) {
+        Task task = new Task();
+        // 用 BeanUtils 把 DTO 里的属性，拷贝到 Entity 里
+        BeanUtils.copyProperties(taskUpdateDTO, task);
+
         taskService.updateTask(task);
         return Result.success(task);
     }
@@ -62,6 +68,7 @@ public class TaskController {
         return Result.success(null);
     }
 
+
     // 分页查询接口
     @GetMapping("/page")
     public Result<PageResult<Task>> getPage(
@@ -71,7 +78,10 @@ public class TaskController {
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String status
     ) {
-        Page<Task> page = taskService.getTasksByPage(pageNum, pageSize, title, status);
+        PageResult<Task> page = taskService.getTasksByPage(pageNum, pageSize, title, status);
         return Result.success(new PageResult<>(page.getRecords(), page.getTotal()));
     }
+
+
+
 }

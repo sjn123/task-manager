@@ -2,17 +2,18 @@ package com.jani.taskmanager.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jani.taskmanager.entity.PageResult;
 import com.jani.taskmanager.entity.Task;
 import com.jani.taskmanager.mapper.TaskMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
-import java.util.ArrayList;
-import java.util.HashMap;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Jani
@@ -52,40 +53,48 @@ public class TaskService {
         taskMapper.deleteById(id);
     }
 
-    // 分页查询
-    public Page<Task> getTasksByPage(int pageNum, int pageSize) {
-        // 1. 创建一个 Page 对象，传入当前页码和每页条数
+    //分页 + 条件查询 + Redis
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper; // Spring Boot 自带的 JSON 转换工具
+    public PageResult<Task> getTasksByPage(int pageNum, int pageSize, String title, String status) {
+        // 1. 拼接缓存 Key
+        String cacheKey = "task:page:" + pageNum + ":" + pageSize + ":" + title + ":" + status;
+
+        // 2. 查 Redis
+        String cacheData = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (cacheData != null) {
+            System.out.println("✅ 命中缓存！从 Redis 返回数据");
+            try {
+                // 注意这里的导包必须是 com.fasterxml.jackson.core.type.TypeReference
+                return objectMapper.readValue(cacheData, new TypeReference<PageResult<Task>>() {});
+            } catch (Exception e) {
+                System.out.println("⚠️ 缓存数据解析失败，将查询数据库");
+            }
+        }
+
+        // 3. 查数据库 (未命中缓存，或者缓存解析失败)
+        System.out.println("❌ 未命中缓存，查询 MySQL 数据库...");
         Page<Task> page = new Page<>(pageNum, pageSize);
-
-        // 2. 调用 MyBatis-Plus 提供的 selectPage 方法
-        // 第一个参数是 page 对象，第二个参数是查询条件（暂时传 null 代表查全部）
-        taskMapper.selectPage(page, null);
-
-        // 3. 返回这个 Page 对象（里面不仅有数据，还有总条数、总页数）
-        return page;
-    }
-
-    // 分页 + 条件查询
-    public Page<Task> getTasksByPage(int pageNum, int pageSize, String title, String status) {
-        Page<Task> page = new Page<>(pageNum, pageSize);
-
-        // 核心：LambdaQueryWrapper，专门用来拼条件的
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
-
-        // 魔法解析：第一个参数是一个 boolean。
-        // 如果 StringUtils.hasText(title) 为 true（即前端传了关键字），才把后面的 like 条件拼进去；
-        // 如果没传，这个条件直接被忽略，不会影响 SQL。
         wrapper.like(StringUtils.hasText(title), Task::getTitle, title);
-
-        // 如果是下拉框选状态，一般用 eq (等于)
         wrapper.eq(StringUtils.hasText(status), Task::getStatus, status);
-
-        // 加个排序，让最新的任务排在最前面（根据 id 倒序）
         wrapper.orderByDesc(Task::getId);
 
-        // 把分页对象和条件构造器一起传进去
         taskMapper.selectPage(page, wrapper);
-        return page;
-    }
+        PageResult<Task> result = new PageResult<>(page.getRecords(), page.getTotal());
 
+        // 4. 回写 Redis，设置 5 分钟过期
+        try {
+            String json = objectMapper.writeValueAsString(result);
+            stringRedisTemplate.opsForValue().set(cacheKey, json, 5, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            System.out.println("⚠️ 写入 Redis 失败");
+        }
+
+        // 5. 返回数据库查到的结果
+        return result;
+    }
 }
